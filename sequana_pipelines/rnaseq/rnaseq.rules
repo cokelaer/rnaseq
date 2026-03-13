@@ -12,6 +12,7 @@ import glob
 import os
 import shutil
 import subprocess
+import sys
 
 import sequana
 from sequana_pipetools import snaketools as sm
@@ -68,7 +69,7 @@ assert os.path.exists(__gff_file__), f"GFF file {__gff_file__} does not exist"
 # check existence of fasta and gff before starting;
 for this in [__fasta_file__, __gff_file__]:
     if os.path.exists(this) is False:
-        raise IOError("File {} not found".format(__fasta_file__))
+        raise IOError("File {} not found".format(this))
 
 
 if manager.config.general.contaminant_file and manager.config.general.rRNA_feature:
@@ -203,7 +204,7 @@ if manager.config.general.aligner == "bowtie2":
             output:
                 multiext(
                     bowtie2_index,
-                    ".1.bt2", ".2.bt2", ".3.bt2", ".4.bt2", ".rev.1.bt2", ".rev.2.bt2",
+                    f".1.{bt2_ext}", f".2.{bt2_ext}", f".3.{bt2_ext}", f".4.{bt2_ext}", f".rev.1.{bt2_ext}", f".rev.2.{bt2_ext}",
                 ),
 
             log:
@@ -282,7 +283,7 @@ elif manager.config.general.aligner == "salmon":
             threads:
                 config['salmon_index']['threads']
             resources:
-                **config["salmon_mapping"]['resources']
+                **config["salmon_index"]['resources']
             params:
                 options=config['salmon_index']['options']
             container:
@@ -361,9 +362,9 @@ elif manager.config.trimming.software_choice == "fastp":
     options_fastp += f" --qualified_quality_phred {_quality}"
     options_fastp += f" -l {_minlen}"
     if config["fastp"].get("disable_adapter_trimming", False) is True:
-        options_fastp += "--disable_adapter_trimming"
+        options_fastp += " --disable_adapter_trimming"
     if config["fastp"].get("disable_quality_filtering", False) is True:
-        options_fastp += "--disable_quality_filtering"
+        options_fastp += " --disable_quality_filtering"
 
     rule fastp:
         input:
@@ -511,12 +512,12 @@ if manager.config.general.aligner == "bowtie2":
             fastq=__clean_fastq__output,
             idx=multiext(
             bowtie2_index,
-            ".1.bt2",
-            ".2.bt2",
-            ".3.bt2",
-            ".4.bt2",
-            ".rev.1.bt2",
-            ".rev.2.bt2",
+            f".1.{bt2_ext}",
+            f".2.{bt2_ext}",
+            f".3.{bt2_ext}",
+            f".4.{bt2_ext}",
+            f".rev.1.{bt2_ext}",
+            f".rev.2.{bt2_ext}",
         ),
 
         output:
@@ -599,7 +600,7 @@ elif manager.config.general.aligner == "salmon":
         log:
             "{sample}/salmon_mapping/salmon.log"
         wrapper:
-            "add_salmon/wrappers/salmon/align"
+            f"{manager.wrappers}/wrappers/salmon/align"
 
 
     expected_output.extend(expand("{sample}/salmon_mapping/{sample}_quant.sf", sample=manager.samples))
@@ -817,13 +818,7 @@ if manager.config.feature_counts.do and manager.config.general.aligner not in ['
                         shell(f"cp {filename}.summary {fc_outdir}")
             else:
                 # if not clear, we copy everything and users should clean up the directory
-                for filename in input.fc0:
-                    shell("cp {} {}".format(filename, fc_outdir))
-                    shell("cp {}.summary {}".format(filename, fc_outdir))
-                for filename in input.fc1:
-                    shell("cp {} {}".format(filename, fc_outdir))
-                    shell("cp {}.summary {}".format(filename, fc_outdir))
-                for filename in input.fc2:
+                for filename in input.counts:
                     shell("cp {} {}".format(filename, fc_outdir))
                     shell("cp {}.summary {}".format(filename, fc_outdir))
 elif manager.config.feature_counts.do and manager.config.general.aligner in ['salmon']:
@@ -1129,9 +1124,9 @@ onsuccess:
             elif rRNA < 20:
                 intro += f"<p>rRNA content (or contaminant provided) represents {rRNA}%, which is moderately low. "
             elif rRNA > 20 and rRNA <50:
-                rRNA += f"<p>rRNA content (or contaminant provided) represents {rRNA}%, which is relatively high. "
+                intro += f"<p>rRNA content (or contaminant provided) represents {rRNA}%, which is relatively high. "
             elif rRNA >= 50:
-                rRNA += f"<p>rRNA content (or contaminant provided) represents {rRNA}%, which is very high. "
+                intro += f"<p>rRNA content (or contaminant provided) represents {rRNA}%, which is very high. "
         else:
             intro += f"<p>rRNA content not computed (no rRNA gene or contaminant provided)</p>"
 
