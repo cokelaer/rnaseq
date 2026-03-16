@@ -9,4 +9,4 @@ def get_package_version(package_name):
         return f"{package_name} not found"
 
 
-version = get_package_version("sequana-lora")
+version = get_package_version("sequana-rnaseq")

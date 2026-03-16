@@ -168,7 +168,7 @@ def test_full():
         cmd = f"sequana_rnaseq --input-directory {sharedir} --genome-directory {saccer3} --aligner-choice bowtie2 --working-directory {wk} --force --rRNA-feature rRNA_gene"
         subprocess.call(cmd.split())
 
-        cmd = "sh rnaseq.sh"
+        cmd = "bash rnaseq.sh"
 
         stat = subprocess.call(cmd.split(), cwd=wk)
 

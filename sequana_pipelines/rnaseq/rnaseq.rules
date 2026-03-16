@@ -68,7 +68,7 @@ assert os.path.exists(__gff_file__), f"GFF file {__gff_file__} does not exist"
 # check existence of fasta and gff before starting;
 for this in [__fasta_file__, __gff_file__]:
     if os.path.exists(this) is False:
-        raise IOError("File {} not found".format(__fasta_file__))
+        raise IOError("File {} not found".format(this))
 
 
 if manager.config.general.contaminant_file and manager.config.general.rRNA_feature:
@@ -97,17 +97,19 @@ if manager.config.general.contaminant_file:
     __bowtie1_index_rna__fasta = "inputs/contamination_file/" + os.path.basename(__bowtie1_index_rna__fasta)
 
     bowtie1_index_conta__input_reference = __bowtie1_index_rna__fasta
-    bowtie1_index_conta__output = f"{__bowtie1_index_rna__fasta}.1.ebwt"
+    bowtie1_index_conta__output = f"{__bowtie1_index_rna__fasta}.1.bt2"
     rule samtools_faidx:
         input:
             __bowtie1_index_rna__fasta
         output:
             __bowtie1_index_rna__fasta + ".fai"
+        log:
+            "logs/indexing/samtools_faidx.log"
         container:
             config['apptainers']['sequana_tools']
         shell:
             """
-            samtools faidx {input[0]}
+            samtools faidx {input[0]} >{log} 2>&1
             """
 
 elif manager.config.general.rRNA_feature:
@@ -116,7 +118,7 @@ elif manager.config.general.rRNA_feature:
 
     bowtie1_index_conta__input_reference = f"{__prefix_name__}_{manager.config.general.rRNA_feature}.fa"
     bowtie1_index_conta__input_gff = f"{__prefix_name__}_{manager.config.general.rRNA_feature}.gff"
-    bowtie1_index_conta__output = f"{__prefix_name__}_{manager.config.general.rRNA_feature}.1.ebwt"
+    bowtie1_index_conta__output = f"{__prefix_name__}_{manager.config.general.rRNA_feature}.1.bt2"
     rule extract_fasta:
         input:
             fasta = __fasta_file__,
@@ -133,6 +135,7 @@ elif manager.config.general.rRNA_feature:
             config['apptainers']['sequana_tools']
         shell:
             """
+            (
             # used to be gawk but awk is more generic.
             awk '{{ if ($3=="{params.feature}") print }}' {input.gff} > {output.gff}
             if [ -s {output.gff} ]
@@ -142,6 +145,7 @@ elif manager.config.general.rRNA_feature:
                 echo -e ">empty\\nAAAAAAAAAAAAAA" > {output.fasta}
             fi
             samtools faidx {output.fasta}
+            ) >{log} 2>&1
             """
 
 # ========================================================= Indexing for rRNA and contmination
@@ -149,22 +153,22 @@ elif manager.config.general.rRNA_feature:
 # redo the indexing whatsover since it is pretty fast
 if manager.config.general.contaminant_file or manager.config.general.rRNA_feature:
 
-    # identify ribosomal contamination or contamination
-    rule ribosomal_contamination:
+    # Build bowtie2 index for rRNA/contaminant detection (QC only)
+    rule bowtie2_index_rrna:
         input:
             reference = bowtie1_index_conta__input_reference,
             fai = bowtie1_index_conta__input_reference + ".fai"
         output:
             bowtie1_index_conta__output
         log:
-            "logs/indexing/bowtie1_index_conta.log"
+            "logs/indexing/bowtie2_index_rrna.log"
         params:
             options=""
         threads: 2
         container:
             config['apptainers']['sequana_tools']
-        wrapper:
-            f"{manager.wrappers}/wrappers/bowtie1/build"
+        shell:
+            manager.get_shell("bowtie2/build", "v1")
 
 
 # ============================================================================ bowtie2 index
@@ -216,8 +220,8 @@ if manager.config.general.aligner == "bowtie2":
                 config['apptainers']['sequana_tools']
             resources:
                 **config['bowtie2_index']['resources']
-            wrapper:
-                f"{manager.wrappers}/wrappers/bowtie2/build"
+            shell:
+                manager.get_shell("bowtie2/build", "v1")
 
 
 # ============================================================================ star index
@@ -245,7 +249,10 @@ elif manager.config.general.aligner  == "star":
                 done = __star_index__done
             params:
                 options= config['star_index']['options'],
-                wkdir= __star_index__dir__
+                wkdir= __star_index__dir__,
+                annotation= config['star_index'].get('annotation', ''),
+                sjdbOverhang= config['star_index'].get('sjdbOverhang', 100),
+                exonParentTranscript= config['star_index'].get('exonParentTranscript', 'Parent')
             threads:
                 config["star_index"]['threads']
             log:
@@ -254,8 +261,8 @@ elif manager.config.general.aligner  == "star":
                 config['apptainers']['sequana_tools']
             resources:
                 **config['star_index']['resources']
-            wrapper:
-                f"{manager.wrappers}/wrappers/star/index"
+            shell:
+                manager.get_shell("star/index", "v1")
 
 
 # ========================================================================== salmon
@@ -282,15 +289,15 @@ elif manager.config.general.aligner == "salmon":
             threads:
                 config['salmon_index']['threads']
             resources:
-                **config["salmon_mapping"]['resources']
+                **config["salmon_index"]['resources']
             params:
                 options=config['salmon_index']['options']
             container:
                 config['apptainers']['salmon']
             log:
                 "logs/salmon_indexing.log"
-            wrapper:
-                f"{manager.wrappers}/wrappers/salmon/index"
+            shell:
+                manager.get_shell("salmon/index", "v1")
 
 
 
@@ -310,8 +317,8 @@ if not manager.config['fastqc']['skip_fastqc_raw']:
             config['apptainers']['fastqc']
         log:
             "{sample}/fastqc_raw/fastqc.log"
-        wrapper:
-            f"{manager.wrappers}/wrappers/fastqc"
+        shell:
+            manager.get_shell("fastqc/run", "v1")
 
     expected_output.extend(expand("{sample}/fastqc_raw/fastqc.done", sample=manager.samples))
 
@@ -361,30 +368,58 @@ elif manager.config.trimming.software_choice == "fastp":
     options_fastp += f" --qualified_quality_phred {_quality}"
     options_fastp += f" -l {_minlen}"
     if config["fastp"].get("disable_adapter_trimming", False) is True:
-        options_fastp += "--disable_adapter_trimming"
+        options_fastp += " --disable_adapter_trimming"
     if config["fastp"].get("disable_quality_filtering", False) is True:
-        options_fastp += "--disable_quality_filtering"
+        options_fastp += " --disable_quality_filtering"
 
-    rule fastp:
-        input:
-            sample=manager.getrawdata()
-        output:
-            trimmed=__clean_fastq__output,
-            html="{sample}/fastp/fastp_{sample}.html",
-            json="{sample}/fastp/fastp_{sample}.json", # must be named fastp
-        log:
-            "logs/fastp/{sample}.log"
-        params:
-            options=options_fastp,
-            adapters=config["fastp"]["adapters"]
-        threads:
-            config["fastp"].get("threads", 4)
-        resources:
-            **config['fastp']['resources']
-        container:
-            config['apptainers']['fastp']
-        wrapper:
-            f"{manager.wrappers}/wrappers/fastp"
+    if manager.paired:
+        rule fastp:
+            input:
+                fastq=manager.getrawdata()
+            output:
+                r1="{sample}/fastp/{sample}_R1_.fastp.fastq.gz",
+                r2="{sample}/fastp/{sample}_R2_.fastp.fastq.gz",
+                html="{sample}/fastp/fastp_{sample}.html",
+                json="{sample}/fastp/fastp_{sample}.json",
+            log:
+                "logs/fastp/{sample}.log"
+            params:
+                options=options_fastp,
+                adapters=config["fastp"]["adapters"]
+            threads:
+                config["fastp"].get("threads", 4)
+            resources:
+                **config['fastp']['resources']
+            container:
+                config['apptainers']['fastp']
+            shell:
+                manager.get_shell("fastp/run", "v1")
+    else:
+        rule fastp:
+            input:
+                fastq=manager.getrawdata()
+            output:
+                r1="{sample}/fastp/{sample}_R1_.fastp.fastq.gz",
+                html="{sample}/fastp/fastp_{sample}.html",
+                json="{sample}/fastp/fastp_{sample}.json",
+            log:
+                "logs/fastp/{sample}.log"
+            params:
+                options=options_fastp,
+                adapters=config["fastp"]["adapters"]
+            threads:
+                config["fastp"].get("threads", 4)
+            resources:
+                **config['fastp']['resources']
+            container:
+                config['apptainers']['fastp']
+            shell:
+                """
+                fastp --thread {threads} {params.options} {params.adapters} \
+                    --in1 {input.fastq} \
+                    --out1 {output.r1} \
+                    --html {output.html} --json {output.json} >{log} 2>&1
+                """
 
 
 # ===================================================== FASTQC fastp results
@@ -404,8 +439,8 @@ rule fastqc_clean:
         **config["fastqc"]['resources']
     container:
         config['apptainers']['fastqc']
-    wrapper:
-        f"{manager.wrappers}/wrappers/fastqc"
+    shell:
+        manager.get_shell("fastqc/run", "v1")
 expected_output.extend(expand("{sample}/fastqc_clean/fastqc.done", sample=manager.samples))
 
 
@@ -433,6 +468,8 @@ rule sample_rRNA:
         __unpigz_R1__input
     output:
         fastq=temp("{sample}/data_for_bowtie1/{sample}_R1_.fastq")
+    log:
+        "{sample}/data_for_bowtie1/{sample}_unpack.log"
     threads: 4
     params:
         nreads = int(config['bowtie1_mapping_rna']['nreads'])
@@ -440,9 +477,9 @@ rule sample_rRNA:
         """
         set +o pipefail
         if [[ {params.nreads} == -1 ]]; then
-            unpigz -p {threads} -fk --stdout {input[0]} > {output[0]}
+            unpigz -p {threads} -fk --stdout {input[0]} > {output[0]} 2>{log}
         else
-            unpigz -p {threads} -fk --stdout {input[0]} | head -n {params.nreads} > {output[0]}
+            unpigz -p {threads} -fk --stdout {input[0]} | head -n {params.nreads} > {output[0]} 2>{log}
         fi
         """
 
@@ -458,49 +495,33 @@ v0.9.14.
 # ========================================== bowtie1 mapping to detect rRNA
 
 if manager.config.general.rRNA_feature or manager.config.general.contaminant_file:
-    # rRNA. Note the list here below because the rule expects a list (in case it
-    # is paired
+    # rRNA/contaminant detection using bowtie2 (for QC reporting only)
 
-    rule bowtie1_mapping_rna:
+    rule bowtie2_mapping_rrna:
         input:
-            fastq= rules.sample_rRNA.output.fastq,
-            index=bowtie1_index_conta__output
+            fastq=rules.sample_rRNA.output.fastq,
+            idx=multiext(
+                bowtie1_index_conta__output.replace(".1.bt2", ""),
+                ".1.bt2",
+                ".2.bt2",
+                ".3.bt2",
+                ".4.bt2",
+                ".rev.1.bt2",
+                ".rev.2.bt2",
+            )
         output:
-            bam = "{sample}/bowtie1_mapping_rna/{sample}_rRNA.bam",
-            sorted = "{sample}/bowtie1_mapping_rna/{sample}_rRNA.sorted.bam",
+            bam="{sample}/bowtie2_rrna/{sample}_rRNA.bam",
+            sorted="{sample}/bowtie2_rrna/{sample}_rRNA.sorted.bam",
         log:
-            "{sample}/bowtie1_mapping_rna/{sample}_bowtie1.log"
+            "{sample}/bowtie2_rrna/{sample}.log"
         params:
-            options=""
+            options=config["bowtie2_mapping"]["options"]
         threads:
             config['bowtie1_mapping_rna']['threads']
         container:
             config['apptainers']['sequana_tools']
-        wrapper:
-            f"{manager.wrappers}/wrappers/bowtie1/align"
-
-    rule fix_bowtie1_log:
-        input:
-            expand("{sample}/bowtie1_mapping_rna/{sample}_bowtie1.log", sample=manager.samples)
-        output:
-            "logs/fix_bowtie1/fix_bowtie1.log"
-        run:
-
-            for filename in input:
-                # we read the file
-                with open(filename) as fin:
-                    data = fin.readlines()
-                # we update the file
-                with open(filename, "w") as fout:
-                    for line in data:
-                        if "least one alignment" in line:
-                            fout.write(line)
-                            fout.write(line.replace("least one alignment", "least one reported alignment"))
-                        else:
-                            fout.write(line)
-            with open(output[0], "w") as fout:
-                fout.write("")
-    expected_output += ["logs/fix_bowtie1/fix_bowtie1.log"]
+        shell:
+            manager.get_shell("bowtie2/align", "v1")
 
 
 # ========================================================== bowtie2 mapping
@@ -531,8 +552,8 @@ if manager.config.general.aligner == "bowtie2":
             config['apptainers']['sequana_tools']
         resources:
              **config['bowtie2_mapping']['resources']
-        wrapper:
-            f"{manager.wrappers}/wrappers/bowtie2/align"
+        shell:
+            manager.get_shell("bowtie2/align", "v1")
 
     __mapping_output = "{sample}/bowtie2/{sample}.sorted.bam"
 
@@ -543,18 +564,18 @@ elif manager.config.general.aligner == "star":
 
     rule star_mapping:
         input:
-            fastq= __clean_fastq__output,
+            fastq=__clean_fastq__output,
             reference=__fasta_file__,
-            index= __star_index__done
+            index=__star_index__done
         output:
-            bam = "{sample}/star_mapping/{sample}_Aligned.sortedByCoord.out.bam"
+            bam="{sample}/star_mapping/{sample}_Aligned.sortedByCoord.out.bam"
         params:
+            annotation=config['star_mapping'].get('annotation', ''),
+            sjdbOverhang=config['star_mapping'].get('sjdbOverhang', 100),
+            exonParentTranscript=config['star_mapping'].get('exonParentTranscript', 'Parent'),
+            outSAMtype="BAM SortedByCoordinate",
+            readFilesCommand="zcat",
             options=config['star_mapping']['options'],
-            # for legacy mapping, set the first and second pass options
-            options_first_pass=config['star_mapping']['options'],
-            options_second_pass=config['star_mapping']['options'],
-            prefix = "{sample}/star_mapping/{sample}",
-            legacy=True,
         threads:
             config['star_mapping']['threads']
         log:
@@ -563,8 +584,8 @@ elif manager.config.general.aligner == "star":
             config['apptainers']['sequana_tools']
         resources:
             **config['star_mapping']['resources']
-        wrapper:
-            f"{manager.wrappers}/wrappers/star/align"
+        shell:
+            manager.get_shell("star/align", "v1")
 
 
     expected_output.extend(
@@ -598,8 +619,8 @@ elif manager.config.general.aligner == "salmon":
             config['apptainers']['salmon']
         log:
             "{sample}/salmon_mapping/salmon.log"
-        wrapper:
-            "add_salmon/wrappers/salmon/align"
+        shell:
+            manager.get_shell("salmon/align", "v1")
 
 
     expected_output.extend(expand("{sample}/salmon_mapping/{sample}_quant.sf", sample=manager.samples))
@@ -613,18 +634,22 @@ elif manager.config.general.aligner == "salmon":
 if manager.config.general.aligner not in ['salmon']:
     rule add_read_group:
         input:
-            __mapping_output
+            bam=__mapping_output
         output:
-            "{sample}/add_read_group/{sample}.sorted.bam"
+            bam="{sample}/add_read_group/{sample}.sorted.bam"
         log:
             "{sample}/add_read_group/{sample}.log"
         params:
             options=config["add_read_group"]["options"],
-            SM="{sample}"
+            SM="{sample}",
+            ID="1",
+            PL="a",
+            LB="a",
+            PU="a"
         container:
             config['apptainers']['sequana_tools']
-        wrapper:
-            f"{manager.wrappers}/wrappers/add_read_group"
+        shell:
+            manager.get_shell("add_read_group/run", "v1")
 
 
 
@@ -650,8 +675,8 @@ if config["mark_duplicates"]["do"]:
             config['apptainers']['sequana_tools']
         resources:
             **config['mark_duplicates']['resources']
-        wrapper:
-            f"{manager.wrappers}/wrappers/mark_duplicates"
+        shell:
+            manager.get_shell("mark_duplicates/run", "v1")
     __final_bam__ = "{sample}/mark_duplicates/{sample}.sorted.markdup.bam"
 elif manager.config.general.aligner not in ['salmon']:
     __final_bam__   = "{sample}/add_read_group/{sample}.sorted.bam"
@@ -676,8 +701,8 @@ if manager.config.bam_coverage.do is True and config['general']['aligner'] not i
             config['apptainers']['sequana_tools']
         resources:
             **config['bam_coverage']['resources']
-        wrapper:
-            f"{manager.wrappers}/wrappers/deeptools/bam_coverage"
+        shell:
+            manager.get_shell("deeptools/bam_coverage", "v1")
 
     expected_output.extend(
         expand(
@@ -708,7 +733,7 @@ if manager.config.igvtools.do and config['general']['aligner'] not in ['salmon']
         threads: 4
         shell:
             """
-            igvtools count -z 5 -w 25 -f mean,max --includeDuplicates {input} {output} {params.chromSize}
+            igvtools count -z 5 -w 25 -f mean,max --includeDuplicates {input} {output} {params.chromSize} >{log} 2>&1
             """
     expected_output.extend(expand("{sample}/igvtools/{sample}.tdf", sample=manager.samples))
 
@@ -764,8 +789,8 @@ if manager.config.feature_counts.do and manager.config.general.aligner not in ['
             config['apptainers']['sequana_tools']
         log:
             "{sample}/feature_counts/{strand}/feature_counts.log"
-        wrapper:
-            f"{manager.wrappers}/wrappers/feature_counts"
+        shell:
+            manager.get_shell("feature_counts/run", "v1")
 
 
     # ===================== guessing the strand
@@ -997,8 +1022,8 @@ rule multiqc:
         **config['multiqc']['resources']
     container:
         config["apptainers"]["multiqc"]
-    wrapper:
-       f"{manager.wrappers}/wrappers/multiqc"
+    shell:
+        manager.get_shell("multiqc/run", "v1")
 
 # ========================================================== rulegraph
 
@@ -1010,8 +1035,8 @@ rule rulegraph:
     params:
         configname="config.yaml",
         mapper = {"multiqc": "../multiqc/multiqc_report.html"},
-    wrapper:
-        f"{manager.wrappers}/wrappers/rulegraph"
+    run:
+        manager.get_run("rulegraph/run", "v1")(input, output, params)
 
 
 rule dot2svg:
@@ -1022,7 +1047,7 @@ rule dot2svg:
     container:
         config['apptainers']['graphviz']
     shell:
-        """dot -Tsvg {input} -o {output}"""
+        manager.get_shell("graphviz/dot2svg", "v1")
 
 
 
@@ -1067,7 +1092,7 @@ rule prepare_DGE_analysis:
 
 
 # Those rules takes a couple of seconds so no need for a cluster
-localrules:  rulegraph, prepare_DGE_analysis
+localrules:  rulegraph, prepare_DGE_analysis, dot2svg
 
 
 onsuccess:
@@ -1129,9 +1154,9 @@ onsuccess:
             elif rRNA < 20:
                 intro += f"<p>rRNA content (or contaminant provided) represents {rRNA}%, which is moderately low. "
             elif rRNA > 20 and rRNA <50:
-                rRNA += f"<p>rRNA content (or contaminant provided) represents {rRNA}%, which is relatively high. "
+                intro += f"<p>rRNA content (or contaminant provided) represents {rRNA}%, which is relatively high. "
             elif rRNA >= 50:
-                rRNA += f"<p>rRNA content (or contaminant provided) represents {rRNA}%, which is very high. "
+                intro += f"<p>rRNA content (or contaminant provided) represents {rRNA}%, which is very high. "
         else:
             intro += f"<p>rRNA content not computed (no rRNA gene or contaminant provided)</p>"
 

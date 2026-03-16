@@ -7,8 +7,6 @@
 # If input_directory provided, use it otherwise if input_pattern provided,
 # use it, otherwise use input_samples.
 # ============================================================================
-sequana_wrappers: "v24.8.29"
-
 input_directory:
 input_readtag: _R[12]_
 input_pattern: '*fastq.gz'
@@ -187,8 +185,14 @@ star_mapping:
 # :Parameters:
 #
 # - options: string with any valid STAR options
+# - annotation: path to GTF/GFF file for annotation (optional)
+# - sjdbOverhang: length of the donor/acceptor sequence on each side of junction
+# - exonParentTranscript: GTF attribute name for parent transcript
 star_index:
     options:
+    annotation: ''
+    sjdbOverhang: 100
+    exonParentTranscript: 'Parent'
     threads: 4
     resources:
       mem: 4G
