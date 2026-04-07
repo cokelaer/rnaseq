@@ -1180,35 +1180,38 @@ onsuccess:
 
 
     # Include the bowtie plot
-    intro += """<h2>Mapping rate</h2>"""
-    if config['general']['aligner'] == "bowtie2":
-        from sequana.multiqc.plots import Bowtie2
-        if not manager.paired:
-            filename = "multiqc/multiqc_data/mqc_bowtie2_se_plot_1.txt"
-            if not os.path.exists(filename):
-                filename = "multiqc/multiqc_report_data/mqc_bowtie2_se_plot_1.txt"
+    try:
+        intro += """<h2>Mapping rate</h2>"""
+        if config['general']['aligner'] == "bowtie2":
+            from sequana.multiqc.plots import Bowtie2
+            if not manager.paired:
+                filename = "multiqc/multiqc_data/mqc_bowtie2_se_plot_1.txt"
                 if not os.path.exists(filename):
-                    filename = "multiqc/multiqc_data/multiqc_bowtie2.txt"
-        else:
-            filename = "multiqc/multiqc_data/mqc_bowtie2_pe_plot_1.txt"
-            if not os.path.exists(filename):
-                filename = "multiqc/multiqc_report_data/mqc_bowtie2_pe_plot_1.txt"
+                    filename = "multiqc/multiqc_report_data/mqc_bowtie2_se_plot_1.txt"
+                    if not os.path.exists(filename):
+                        filename = "multiqc/multiqc_data/multiqc_bowtie2.txt"
+            else:
+                filename = "multiqc/multiqc_data/mqc_bowtie2_pe_plot_1.txt"
                 if not os.path.exists(filename):
-                    filename = "multiqc/multiqc_data/multiqc_bowtie2.txt"
-        br = Bowtie2(filename)
-        fig = br.plot(html_code=True)
-        from  plotly import offline
-        intro += """<p>The mapping was performed with bowtie2. Here below are the percentage of mapping for each sample. See also the multiqc report.</p>""" + offline.plot(fig, output_type="div", include_plotlyjs=True)
+                    filename = "multiqc/multiqc_report_data/mqc_bowtie2_pe_plot_1.txt"
+                    if not os.path.exists(filename):
+                        filename = "multiqc/multiqc_data/multiqc_bowtie2.txt"
+            br = Bowtie2(filename)
+            fig = br.plot(html_code=True)
+            from  plotly import offline
+            intro += """<p>The mapping was performed with bowtie2. Here below are the percentage of mapping for each sample. See also the multiqc report.</p>""" + offline.plot(fig, output_type="div", include_plotlyjs=True)
 
-    elif config["general"]["aligner"] == "star":
-        from sequana.multiqc.plots import STAR
-        filename = "multiqc/multiqc_report_data/multiqc_star.txt"
-        if not os.path.exists(filename):
-            filename = "multiqc/multiqc_data/multiqc_star.txt"
-        br = STAR(filename)
-        fig = br.plot(html_code=True)
-        from  plotly import offline
-        intro += """<p>The mapping was performed with STAR. Here below are the percentage of mapping for each sample. See also the multiqc report.</p>""" + offline.plot(fig, output_type="div", include_plotlyjs=True)
+        elif config["general"]["aligner"] == "star":
+            from sequana.multiqc.plots import STAR
+            filename = "multiqc/multiqc_report_data/multiqc_star.txt"
+            if not os.path.exists(filename):
+                filename = "multiqc/multiqc_data/multiqc_star.txt"
+            br = STAR(filename)
+            fig = br.plot(html_code=True)
+            from  plotly import offline
+            intro += """<p>The mapping was performed with STAR. Here below are the percentage of mapping for each sample. See also the multiqc report.</p>""" + offline.plot(fig, output_type="div", include_plotlyjs=True)
+    except Exception as err:
+        print(f"WARNING: Could not generate mapping rate plot: {err}")
 
     try:
         from sequana.multiqc.plots import FeatureCounts
