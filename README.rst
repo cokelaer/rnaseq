@@ -190,6 +190,8 @@ Changelog
 ========= ====================================================================
 Version   Description
 ========= ====================================================================
+0.21.0    * Fix requirements, update apptainer for sequana_tools and fastp,
+            add star options to use new shells.
 0.20.2    * Fix workflow and multiqc parsing
 0.20.1    * Fix wrapper version in the config and fastp rule.
 0.20.0    * Fix regression due to new sequana version
