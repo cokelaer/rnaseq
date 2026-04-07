@@ -3,8 +3,6 @@
 
 type: map
 mapping:
-    "sequana_wrappers":
-        type: str
     "input_directory":
         type: str
         required: True
@@ -14,6 +12,9 @@ mapping:
     "input_pattern":
         type: str
         required: True
+    "exclude_pattern":
+        type: str
+        required: False
     "apptainers":
         type: any
 
@@ -345,6 +346,15 @@ mapping:
         mapping:
             "options":
                 type: str
+            "annotation":
+                type: str
+                required: false
+            "sjdbOverhang":
+                type: int
+                required: false
+            "exonParentTranscript":
+                type: str
+                required: false
             "threads":
                 type: int
                 required: True

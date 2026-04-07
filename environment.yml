@@ -1,11 +1,9 @@
 name: sequana_rnaseq
-
 channels:
 - conda-forge
 - bioconda
 - defaults
 - r
-
 dependencies:
 - cutadapt
 - atropos
@@ -19,6 +17,7 @@ dependencies:
 - fastp
 - deeptools
 - salmon
-- star
+- star>=2.7
 - picard>2.20
 - gffread
+- pulp>=2.8

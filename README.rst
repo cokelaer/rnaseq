@@ -8,11 +8,15 @@
     :alt: JOSS (journal of open source software) DOI
 
 .. image:: https://github.com/sequana/rnaseq/actions/workflows/main.yml/badge.svg
-   :target: https://github.com/sequana/rnaseq/actions/workflows/main.yaml
+   :target: https://github.com/sequana/rnaseq/actions/workflows/main.yml
+
+.. image:: https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg
+    :target: https://pypi.python.org/pypi/sequana_rnaseq
+    :alt: Python 3.11 | 3.12
 
 
 
-This is is the **RNA-seq** pipeline from the `Sequana <https://sequana.readthedocs.org>`_ project
+This is the **RNA-seq** pipeline from the `Sequana <https://sequana.readthedocs.org>`_ project
 
 :Overview: RNASeq analysis from raw data to feature counts
 :Input: A set of Fastq Files and genome reference and annotation.
@@ -30,7 +34,7 @@ Installation
 
     pip install sequana_rnaseq --upgrade
 
-You will need third-party software such as bowtie2/star. However, if you choose to use aptainer/singularity,
+You will need third-party software such as bowtie2/star. However, if you choose to use apptainer/singularity,
 then nothing to install except singularity itself ! See below for details.
 
 
@@ -48,7 +52,7 @@ to execute the pipeline::
     cd rnaseq
     sh rnaseq.sh  # for a local run
 
-This launch a snakemake pipeline. If you are familiar with snakemake, you can
+This launches a snakemake pipeline. If you are familiar with snakemake, you can
 retrieve the pipeline itself and its configuration files and then execute the pipeline yourself with specific parameters::
 
     snakemake -s rnaseq.rules -c config.yaml --cores 4 --stats stats.txt
@@ -75,7 +79,7 @@ if you decide to use snakemake manually, do not forget to add the apptainer-pref
 Usage on cluster with no internet access
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-We use wrappers that are hosted on github: https://github.com/cokelaer/sequana-wrappers/ . There are copied locally in your home. However if you wish, you can download the repository locally before using the pipeline. For example:
+We use wrappers that are hosted on github: https://github.com/sequana/sequana-wrappers/ . They are copied locally in your home. However if you wish, you can download the repository locally before using the pipeline. For example::
 
     export WRAPPERS=/home/user/Wrappers
     git clone git@github.com:sequana/sequana-wrappers.git $WRAPPERS
@@ -110,7 +114,7 @@ Or use the conda.yaml file available in this repository. If you start a new
 environment from scratch, those commands will create the environment and install
 all dependencies for you::
 
-    conda create --name sequana_env python 3.7.3
+    conda create --name sequana_env python 3.9
     conda activate sequana_env
     conda install -c anaconda qt pyqt>5
     pip install sequana
@@ -120,7 +124,7 @@ all dependencies for you::
 For Linux users, we provide singularity images available through within the damona project (https://damona.readthedocs.io).
 
 
-.. image:: https://raw.githubusercontent.com/sequana/sequana_rnaseq/main/sequana_pipelines/rnaseq/dag.png
+.. image:: https://raw.githubusercontent.com/sequana/rnaseq/main/sequana_pipelines/rnaseq/dag.png
 
 
 Details
@@ -133,19 +137,19 @@ A brief HTML report is produced together with a MultiQC report.
 This pipeline is complex and requires some expertise for the interpretation.
 Many online-resources are available and should help you deciphering the output.
 
-Yet, it should be quite straigtforward to execute it as shown above. The
+Yet, it should be quite straightforward to execute it as shown above. The
 pipeline uses bowtie1 to look for ribosomal contamination (rRNA). Then,
 it cleans  the data with cutapdat if you say so (your data may already be
 pre-processed). If no adapters are provided (default), reads are
 trimmed for low quality bases only. Then, mapping is performed with standard mappers such as
 star or bowtie2 (--aligner option). Finally,
 feature counts are extracted from the previously generated BAM files. We guess
-the strand and save the feature counts into the directoy
+the strand and save the feature counts into the directory
 ./rnadiff/feature_counts.
 
-The pipelines stops there. However, RNA-seq analysis are followed by a different
+The pipeline stops there. However, RNA-seq analyses are followed by a different
 analysis (DGE hereafter). Although the DGE is not part of the pipeline, you can
-performed it with standard tools using the data in ./rnadiff directory. One such
+perform it with standard tools using the data in ./rnadiff directory. One such
 tool is provided within our framework (based on the well known DEseq2 software).
 
 Using our framework::
@@ -157,15 +161,15 @@ Using our framework::
 where ANNOT is the annotation file of your analysis, FEAT and ATTR the attribute
 and feature used in your analysis (coming from the annotation file).
 
-This produces a HTML report summarizing you differential analysis.
+This produces a HTML report summarizing your differential analysis.i
 
-Note that you need DESEQ2 and other packages installed. You may also use this contaier: https://zenodo.org/records/5708856
+Note that you need DESEQ2 and other packages installed. You may also use this container: https://zenodo.org/records/5708856
 
 
 Rules and configuration details
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Here is the `latest documented configuration file <https://raw.githubusercontent.com/sequana/sequana_rnaseq/main/sequana_pipelines/rnaseq/config.yaml>`_
+Here is the `latest documented configuration file <https://raw.githubusercontent.com/sequana/rnaseq/main/sequana_pipelines/rnaseq/config.yaml>`_
 to be used with the pipeline. Each rule used in the pipeline may have a section in the configuration file.
 
 

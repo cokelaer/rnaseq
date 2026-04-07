@@ -238,10 +238,10 @@ def main(**options):
             )
             cfg.rnaseqc.do = False
 
-    cfg.rnaseqc.gtf_file = options.rnaseqc_gtf_file
+    cfg.rnaseqc.gtf_file = options.rnaseqc_gtf_file or ""
 
     cfg.rseqc.do = options.do_rseqc
-    cfg.rseqc.bed_file = options.rseqc_bed_file
+    cfg.rseqc.bed_file = options.rseqc_bed_file or ""
 
     # -------------------------------------------------------- RNAdiff
 
