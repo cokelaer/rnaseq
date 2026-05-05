@@ -14,6 +14,9 @@
     :target: https://pypi.python.org/pypi/sequana_rnaseq
     :alt: Python 3.11 | 3.12
 
+.. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.19456198.svg
+    :target: https://doi.org/10.5281/zenodo.19456198
+
 
 
 This is the **RNA-seq** pipeline from the `Sequana <https://sequana.readthedocs.org>`_ project
