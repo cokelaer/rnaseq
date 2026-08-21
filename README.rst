@@ -193,6 +193,15 @@ Changelog
 ========= ====================================================================
 Version   Description
 ========= ====================================================================
+0.22.0    * Summary report: new per-sample QC table (library sizes, quality,
+            mapping and annotation rates, library complexity) with warning
+            thresholds, and a bar plot of the library sizes.
+          * Summary report: every section is now listed in the sidebar, and the
+            differential analysis section explains how to install DESeq2 and run
+            rnadiff (damona or the rtools container).
+          * Fix the mapping rate plot being empty (the multiqc general stats
+            files are now preferred over the plot data files) and embed plotly.js
+            only once, which halves the size of the report.
 0.21.0    * Fix requirements, update apptainer for sequana_tools and fastp,
             add star options to use new shells.
 0.20.2    * Fix workflow and multiqc parsing
