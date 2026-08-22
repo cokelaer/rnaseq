@@ -49,6 +49,23 @@ Usage
     sequana_rnaseq --help
     sequana_rnaseq --input-directory DATAPATH --genome-directory genome --aligner-choice star
 
+Here, the *genome* directory must contain the genome sequence and its annotation,
+both named after the directory itself (e.g. genome/genome.fa and genome/genome.gff).
+
+Alternatively, you may provide a NCBI assembly accession. The genome sequence and
+its annotation are then downloaded for you (using the NCBI *datasets* tool) into a
+local directory named after the accession::
+
+    sequana_rnaseq --input-directory DATAPATH --genome-accession GCF_000146045.2 --aligner-choice star
+
+The download is performed once: if the files are already available locally, they are
+re-used (use --force-genome-download to download them again). Note that the assembly
+must be annotated since the pipeline requires a GFF file. The --genome-accession and
+--genome-directory options are mutually exclusive.
+
+If the NCBI *datasets* executable is installed, it is used. Otherwise (or if it fails),
+the NCBI datasets REST API is used instead; this requires no external software at all.
+
 This creates a directory with the pipeline and configuration file. You will then need
 to execute the pipeline::
 
@@ -193,7 +210,8 @@ Changelog
 ========= ====================================================================
 Version   Description
 ========= ====================================================================
-0.22.0    * Summary report: new per-sample QC table (library sizes, quality,
+0.22.0    * add --genome-accession to download genome reference and annotation on the fly.
+          * Summary report: new per-sample QC table (library sizes, quality,
             mapping and annotation rates, library complexity) with warning
             thresholds, and a bar plot of the library sizes.
           * Summary report: every section is now listed in the sidebar, and the
