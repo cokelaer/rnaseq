@@ -1,6 +1,7 @@
+"""Tests of the NCBI genome/annotation download"""
+
 import os
 import shutil
-import subprocess
 import zipfile
 
 import pytest
@@ -48,6 +49,7 @@ def create_fake_api(monkeypatch, archive, calls):
 
 
 def test_download_genome(tmp_path, monkeypatch):
+    """The genome and its annotation are downloaded and renamed"""
     bindir = create_fake_datasets(tmp_path)
     monkeypatch.setenv("PATH", str(bindir), prepend=os.pathsep)
 
@@ -59,6 +61,7 @@ def test_download_genome(tmp_path, monkeypatch):
 
 
 def test_download_genome_reuse(tmp_path, monkeypatch):
+    """Existing files are re-used instead of being downloaded again"""
     # no 'datasets' executable available: existing files must be re-used
     monkeypatch.setenv("PATH", str(tmp_path / "empty"))
 
@@ -71,6 +74,7 @@ def test_download_genome_reuse(tmp_path, monkeypatch):
 
 
 def test_download_genome_no_datasets(tmp_path, monkeypatch):
+    """Without the 'datasets' executable, the REST API is used"""
     # no 'datasets' executable: the REST API must be used instead
     create_fake_datasets(tmp_path)
     monkeypatch.setenv("PATH", str(tmp_path / "empty"))
@@ -85,6 +89,7 @@ def test_download_genome_no_datasets(tmp_path, monkeypatch):
 
 
 def test_download_genome_fallback_on_error(tmp_path, monkeypatch):
+    """When 'datasets' fails, the REST API takes over"""
     # the 'datasets' executable fails: the REST API must take over
     bindir = create_fake_datasets(tmp_path, returncode=1)
     monkeypatch.setenv("PATH", str(bindir), prepend=os.pathsep)
@@ -98,6 +103,7 @@ def test_download_genome_fallback_on_error(tmp_path, monkeypatch):
 
 
 def test_download_genome_error(tmp_path, monkeypatch):
+    """When all methods fail, nothing is left behind"""
     # both methods fail
     bindir = create_fake_datasets(tmp_path, returncode=1)
     monkeypatch.setenv("PATH", str(bindir), prepend=os.pathsep)
@@ -115,14 +121,18 @@ def test_download_genome_error(tmp_path, monkeypatch):
 
 
 def test_download_with_api(tmp_path, monkeypatch):
+    """A valid archive downloaded from the API is kept as it is"""
     create_fake_datasets(tmp_path)
-    content = open(tmp_path / "reference.zip", "rb").read()
+    content = (tmp_path / "reference.zip").read_bytes()
 
     class FakeResponse:
+        """Minimal stand-in for a requests response"""
+
         def raise_for_status(self):
-            pass
+            """No HTTP error"""
 
         def iter_content(self, chunk_size=1):
+            """Yield the whole payload at once"""
             yield content
 
     import requests
@@ -135,11 +145,16 @@ def test_download_with_api(tmp_path, monkeypatch):
 
 
 def test_download_with_api_not_a_zip(tmp_path, monkeypatch):
+    """A JSON error message returned by the API is reported"""
+
     class FakeResponse:
+        """Minimal stand-in for a requests response"""
+
         def raise_for_status(self):
-            pass
+            """No HTTP error"""
 
         def iter_content(self, chunk_size=1):
+            """Yield the whole payload at once"""
             yield b'{"message": "invalid accession"}'
 
     import requests
@@ -151,6 +166,7 @@ def test_download_with_api_not_a_zip(tmp_path, monkeypatch):
 
 
 def test_download_genome_no_annotation(tmp_path, monkeypatch):
+    """An assembly without annotation is rejected"""
     bindir = create_fake_datasets(tmp_path, gff=False)
     monkeypatch.setenv("PATH", str(bindir), prepend=os.pathsep)
 
@@ -159,12 +175,17 @@ def test_download_genome_no_annotation(tmp_path, monkeypatch):
 
 
 def test_download_with_api_truncated_archive(tmp_path, monkeypatch):
+    """A truncated archive returned by the API is reported"""
+
     # with an unknown accession, NCBI returns a truncated (binary) archive
     class FakeResponse:
+        """Minimal stand-in for a requests response"""
+
         def raise_for_status(self):
-            pass
+            """No HTTP error"""
 
         def iter_content(self, chunk_size=1):
+            """Yield the whole payload at once"""
             yield b"PK\x03\x04-\x00\x08\x00\x08\x00\xff\xff\xff\xff"
 
     import requests
@@ -173,3 +194,18 @@ def test_download_with_api_truncated_archive(tmp_path, monkeypatch):
 
     with pytest.raises(RuntimeError, match="accession may be incorrect"):
         download_module._download_with_api(ACCESSION, str(tmp_path / "downloaded.zip"))
+
+
+def test_safe_extract_rejects_path_traversal(tmp_path):
+    """Archive members pointing outside of the target directory are refused"""
+    archive = tmp_path / "malicious.zip"
+    with zipfile.ZipFile(archive, "w") as zipdata:
+        zipdata.writestr("../escaped.fna", ">chr1\nACGT\n")
+
+    target = tmp_path / "extraction"
+    target.mkdir()
+    with zipfile.ZipFile(archive) as zipdata:
+        with pytest.raises(RuntimeError, match="Unexpected path"):
+            download_module._safe_extract(zipdata, str(target))
+
+    assert not os.path.exists(tmp_path / "escaped.fna")

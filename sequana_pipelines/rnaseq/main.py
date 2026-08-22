@@ -157,15 +157,15 @@ fly.""",
 def main(**options):
 
     if options["from_project"]:
-        click.echo("--from-project Not yet implemented")
+        click.echo("--from-project Not yet implemented", err=True)
         sys.exit(1)
 
     # mutually exclusive and mandatory genome options
     if options["genome_directory"] and options["genome_accession"]:
-        click.echo("--genome-directory and --genome-accession are mutually exclusive")
+        click.echo("--genome-directory and --genome-accession are mutually exclusive", err=True)
         sys.exit(1)
     if not options["genome_directory"] and not options["genome_accession"]:
-        click.echo("You must provide either --genome-directory or --genome-accession")
+        click.echo("You must provide either --genome-directory or --genome-accession", err=True)
         sys.exit(1)
 
     # the real stuff is here

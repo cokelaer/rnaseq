@@ -212,51 +212,53 @@ def __test_full_salmon():
 
 # fast
 def test_genome_options_mutually_exclusive():
-    directory = tempfile.TemporaryDirectory()
-    runner = CliRunner()
-    results = runner.invoke(
-        main,
-        [
-            "--input-directory",
-            sharedir,
-            "--genome-directory",
-            saccer3,
-            "--genome-accession",
-            "GCF_000146045.2",
-            "--force",
-            "--aligner-choice",
-            "bowtie2",
-            "--working-directory",
-            directory.name,
-        ],
-    )
-    assert results.exit_code == 1
+    """--genome-directory and --genome-accession cannot be used together"""
+    with tempfile.TemporaryDirectory() as directory:
+        runner = CliRunner()
+        results = runner.invoke(
+            main,
+            [
+                "--input-directory",
+                sharedir,
+                "--genome-directory",
+                saccer3,
+                "--genome-accession",
+                "GCF_000146045.2",
+                "--force",
+                "--aligner-choice",
+                "bowtie2",
+                "--working-directory",
+                directory,
+            ],
+        )
+        assert results.exit_code == 1
 
 
 # fast
 def test_genome_options_required():
-    directory = tempfile.TemporaryDirectory()
-    runner = CliRunner()
-    results = runner.invoke(
-        main,
-        [
-            "--input-directory",
-            sharedir,
-            "--force",
-            "--aligner-choice",
-            "bowtie2",
-            "--working-directory",
-            directory.name,
-        ],
-    )
-    assert results.exit_code == 1
+    """One of --genome-directory or --genome-accession is mandatory"""
+    with tempfile.TemporaryDirectory() as directory:
+        runner = CliRunner()
+        results = runner.invoke(
+            main,
+            [
+                "--input-directory",
+                sharedir,
+                "--force",
+                "--aligner-choice",
+                "bowtie2",
+                "--working-directory",
+                directory,
+            ],
+        )
+        assert results.exit_code == 1
 
 
 # fast
 def test_genome_accession(monkeypatch):
+    """The downloaded genome directory ends up in the configuration file"""
     # the download itself is tested in test_download.py; here we only check that
     # the downloaded directory is the one stored in the configuration file
-    directory = tempfile.TemporaryDirectory()
     accession = "GCF_000000000.1"
 
     def fake_download(acc, outdir=".", force=False):
@@ -267,22 +269,23 @@ def test_genome_accession(monkeypatch):
 
     monkeypatch.setattr(download, "download_genome", fake_download)
 
-    runner = CliRunner()
-    results = runner.invoke(
-        main,
-        [
-            "--input-directory",
-            sharedir,
-            "--genome-accession",
-            accession,
-            "--force",
-            "--aligner-choice",
-            "bowtie2",
-            "--working-directory",
-            directory.name,
-        ],
-    )
-    assert results.exit_code == 0
+    with tempfile.TemporaryDirectory() as directory:
+        runner = CliRunner()
+        results = runner.invoke(
+            main,
+            [
+                "--input-directory",
+                sharedir,
+                "--genome-accession",
+                accession,
+                "--force",
+                "--aligner-choice",
+                "bowtie2",
+                "--working-directory",
+                directory,
+            ],
+        )
+        assert results.exit_code == 0
 
-    with open(f"{directory.name}/.sequana/config.yaml") as fin:
-        assert os.path.abspath(saccer3) in fin.read()
+        with open(f"{directory}/.sequana/config.yaml") as fin:
+            assert os.path.abspath(saccer3) in fin.read()
